@@ -142,7 +142,6 @@
 |  centaur-tools call vlogs execution_timeline '{"execution_id":"exe_123"}'               → execution trace
 |  centaur-tools call vlogs service_health '{"start":"1h"}'                               → error/request counts per service
 |  centaur-tools call vlogs sandbox_activity '{"start":"1h"}'                             → sandbox lifecycle
-|  centaur-tools call vlogs tool_analytics '{"start":"7d"}'                               → tool usage stats
 |  vlogs query 'level:error AND event:tool_call_completed' --limit 20                       → raw LogsQL
 |
 |Metrics (VictoriaMetrics via `vmetrics`):
