@@ -27,6 +27,7 @@ static OTLP_TRACE_METADATA: OnceLock<BTreeMap<String, Value>> = OnceLock::new();
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TraceContext {
+    #[allow(dead_code)]
     pub(crate) thread_key: Option<String>,
     pub(crate) trace_id: Option<String>,
     pub(crate) traceparent: Option<String>,
@@ -714,7 +715,11 @@ fn set_harness_span_io_attributes(
     output: Option<&str>,
 ) {
     if let Some(input) = clean_optional(input) {
-        set_attribute_int(attributes, "centaur.input_chars", Some(input.chars().count() as i64));
+        set_attribute_int(
+            attributes,
+            "centaur.input_chars",
+            Some(input.chars().count() as i64),
+        );
     }
     if let Some(output) = clean_optional(output) {
         set_attribute_int(
@@ -1368,8 +1373,18 @@ trust_level = "trusted"
             attribute_int(&span.attributes, "centaur.output_chars"),
             Some("hi there".chars().count() as i64)
         );
-        assert_eq!(attribute_string(&span.attributes, "input.value"), "");
-        assert_eq!(attribute_string(&span.attributes, "output.value"), "");
+        assert!(
+            !span
+                .attributes
+                .iter()
+                .any(|attribute| attribute.key == "input.value")
+        );
+        assert!(
+            !span
+                .attributes
+                .iter()
+                .any(|attribute| attribute.key == "output.value")
+        );
         assert_eq!(
             attribute_int(&span.attributes, "gen_ai.usage.input_tokens"),
             Some(2)

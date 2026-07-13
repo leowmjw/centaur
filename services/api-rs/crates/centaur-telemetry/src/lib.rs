@@ -1307,7 +1307,22 @@ mod tests {
         assert_eq!(span.name, "centaur.api_rs.thread");
         assert_eq!(span.start_time_unix_nano, 0);
         assert!(span.end_time_unix_nano > span.start_time_unix_nano);
-        assert!(span.attributes.is_empty());
+        assert!(
+            span.attributes
+                .iter()
+                .any(|attribute| attribute.key == FIELD_COMPONENT)
+        );
+        assert!(
+            span.attributes
+                .iter()
+                .any(|attribute| attribute.key == FIELD_EVENT)
+        );
+        assert!(
+            span.attributes
+                .iter()
+                .all(|attribute| attribute.key != "centaur.thread_key"
+                    && attribute.key != FIELD_THREAD_KEY)
+        );
     }
 
     #[test]
