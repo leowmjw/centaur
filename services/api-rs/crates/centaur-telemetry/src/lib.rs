@@ -534,7 +534,6 @@ pub async fn export_thread_trace_root_span(
             %error,
             trace_id,
             root_span_id,
-            thread_key,
             "failed to export thread trace root span"
         );
         return false;
@@ -546,13 +545,12 @@ pub async fn export_thread_trace_root_span(
 async fn export_thread_trace_root_span_inner(
     trace_id: &str,
     root_span_id: &str,
-    thread_key: &str,
+    _thread_key: &str,
 ) -> Result<(), String> {
     let trace_id = trace_id.to_owned();
     let root_span_id = root_span_id.to_owned();
-    let thread_key = thread_key.to_owned();
     tokio::task::spawn_blocking(move || {
-        export_thread_trace_root_span_blocking(&trace_id, &root_span_id, &thread_key)
+        export_thread_trace_root_span_blocking(&trace_id, &root_span_id)
     })
     .await
     .map_err(|error| format!("thread root span export task failed: {error}"))?
@@ -561,22 +559,18 @@ async fn export_thread_trace_root_span_inner(
 fn export_thread_trace_root_span_blocking(
     trace_id: &str,
     root_span_id: &str,
-    thread_key: &str,
 ) -> Result<(), String> {
     let endpoint = otlp_traces_endpoint()
         .ok_or_else(|| "OTLP traces endpoint is not configured".to_owned())?;
-    let request =
-        thread_trace_root_export_request(trace_id, root_span_id, thread_key, SystemTime::now())?;
+    let request = thread_trace_root_export_request(trace_id, root_span_id, SystemTime::now())?;
     let mut headers = otlp_export_headers();
     headers.push(("x-trace-id".to_owned(), trace_id.to_owned()));
-    headers.push(("x-centaur-thread-key".to_owned(), thread_key.to_owned()));
     post_otlp_trace_payload(&endpoint, &headers, &request.encode_to_vec())
 }
 
 fn thread_trace_root_export_request(
     trace_id: &str,
     root_span_id: &str,
-    thread_key: &str,
     start_time: SystemTime,
 ) -> Result<ExportTraceServiceRequest, String> {
     let config = TelemetryConfig::from_env();
@@ -616,8 +610,6 @@ fn thread_trace_root_export_request(
                     attributes: vec![
                         proto_kv_string(FIELD_COMPONENT, "session_runtime"),
                         proto_kv_string(FIELD_EVENT, "thread_trace_root"),
-                        proto_kv_string("centaur.thread_key", thread_key),
-                        proto_kv_string(FIELD_THREAD_KEY, thread_key),
                     ],
                     flags: 1,
                     ..Default::default()
@@ -652,10 +644,7 @@ fn post_otlp_trace_payload(
     )
     .map_err(|error| format!("failed to write OTLP request headers: {error}"))?;
     for (name, value) in headers {
-        if matches!(
-            name.as_str(),
-            "authorization" | "x-trace-id" | "x-centaur-thread-key"
-        ) {
+        if matches!(name.as_str(), "authorization" | "x-trace-id") {
             write!(upstream, "{name}: {value}\r\n")
                 .map_err(|error| format!("failed to write OTLP header {name}: {error}"))?;
         }
@@ -1298,7 +1287,6 @@ mod tests {
         let request = thread_trace_root_export_request(
             "01234567-89ab-cdef-0123-456789abcdef",
             "1111111111111111",
-            "slack:T:C:1782217699.671539",
             SystemTime::UNIX_EPOCH,
         )
         .expect("thread root span");
@@ -1322,7 +1310,18 @@ mod tests {
         assert!(
             span.attributes
                 .iter()
-                .any(|attribute| attribute.key == "centaur.thread_key")
+                .any(|attribute| attribute.key == FIELD_COMPONENT)
+        );
+        assert!(
+            span.attributes
+                .iter()
+                .any(|attribute| attribute.key == FIELD_EVENT)
+        );
+        assert!(
+            span.attributes
+                .iter()
+                .all(|attribute| attribute.key != "centaur.thread_key"
+                    && attribute.key != FIELD_THREAD_KEY)
         );
     }
 

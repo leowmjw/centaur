@@ -40,11 +40,9 @@ def test_tool_calls_exposes_tool_args() -> None:
                 "event": "tool_call_completed",
                 "tool_name": "websearch",
                 "tool_method": "cli",
-                "tool_args": ["lookup", "openai"],
                 "tool_args_count": 2,
                 "duration_ms": "42",
                 "success": "true",
-                "thread_key": "cli:test-thread",
             }
         ]
     )
@@ -54,11 +52,9 @@ def test_tool_calls_exposes_tool_args() -> None:
             "_time": "2026-06-29T12:00:00Z",
             "duration_ms": "42",
             "success": "true",
-            "tool_args": ["lookup", "openai"],
             "tool_args_count": 2,
             "tool_name": "websearch",
             "tool_method": "cli",
-            "thread_key": "cli:test-thread",
         }
     ]
 
@@ -69,31 +65,24 @@ def test_tool_analytics_counts_cli_arg_patterns() -> None:
             {
                 "tool_name": "websearch",
                 "tool_method": "cli",
-                "tool_args": ["lookup", "openai"],
                 "duration_ms": "10",
                 "success": "true",
-                "thread_key": "cli:test-thread-a",
             },
             {
                 "tool_name": "websearch",
                 "tool_method": "cli",
-                "tool_args": ["lookup", "openai"],
                 "duration_ms": "20",
                 "success": "true",
-                "thread_key": "cli:test-thread-b",
             },
             {
                 "tool_name": "websearch",
                 "tool_method": "cli",
-                "tool_args": ["lookup", "anthropic"],
                 "duration_ms": "30",
                 "success": "false",
-                "thread_key": "cli:test-thread-b",
             },
             {
                 "tool_name": "slack",
                 "tool_method": "cli",
-                "tool_args": [],
                 "duration_ms": "5",
                 "success": "true",
             },
@@ -107,8 +96,6 @@ def test_tool_analytics_counts_cli_arg_patterns() -> None:
             "failures": 1,
             "failure_rate_pct": 33.3,
             "avg_duration_ms": 20,
-            "unique_threads": 2,
-            "args": {"lookup openai": 2, "lookup anthropic": 1},
             "methods": {"cli": 3},
         },
         {
@@ -117,8 +104,6 @@ def test_tool_analytics_counts_cli_arg_patterns() -> None:
             "failures": 0,
             "failure_rate_pct": 0.0,
             "avg_duration_ms": 5,
-            "unique_threads": 0,
-            "args": {"(no args)": 1},
             "methods": {"cli": 1},
         },
     ]

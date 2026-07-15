@@ -13,7 +13,7 @@ use opentelemetry_proto::tonic::common::v1::{AnyValue, InstrumentationScope, Key
 use opentelemetry_proto::tonic::resource::v1::Resource;
 use opentelemetry_proto::tonic::trace::v1::{ResourceSpans, ScopeSpans, Span, span};
 use prost::Message as _;
-use serde_json::{Value, json};
+use serde_json::Value;
 use url::Url;
 use uuid::Uuid;
 
@@ -27,6 +27,7 @@ static OTLP_TRACE_METADATA: OnceLock<BTreeMap<String, Value>> = OnceLock::new();
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TraceContext {
+    #[allow(dead_code)]
     pub(crate) thread_key: Option<String>,
     pub(crate) trace_id: Option<String>,
     pub(crate) traceparent: Option<String>,
@@ -79,7 +80,6 @@ pub(crate) fn configure_codex_otel_for_startup(trace: &TraceContext) -> Result<(
         &base,
         &proxy_endpoint,
         &trace_id,
-        trace.thread_key.as_deref(),
         api_key.as_deref(),
         &environment,
     );
@@ -130,9 +130,6 @@ pub(crate) fn export_harness_usage_span(
     let mut headers = otel_forward_headers();
     if let Some(trace_id) = trace.effective_trace_id() {
         headers.insert("x-trace-id".to_string(), trace_id);
-    }
-    if let Some(thread_key) = clean_optional(trace.thread_key.as_deref()) {
-        headers.insert("x-centaur-thread-key".to_string(), thread_key);
     }
     post_otlp_trace_payload(&endpoint, &headers, &request.encode_to_vec())
 }
@@ -192,17 +189,10 @@ fn codex_otel_config_contents(
     base: &str,
     endpoint: &str,
     trace_id: &str,
-    thread_key: Option<&str>,
     api_key: Option<&str>,
     environment: &str,
 ) -> String {
     let mut headers = vec![format!("x-trace-id = {}", toml_string(trace_id))];
-    if let Some(thread_key) = clean_optional(thread_key) {
-        headers.push(format!(
-            "x-centaur-thread-key = {}",
-            toml_string(&thread_key)
-        ));
-    }
     if let Some(api_key) = clean_optional(api_key) {
         headers.push(format!(
             "authorization = {}",
@@ -212,7 +202,6 @@ fn codex_otel_config_contents(
     let otel_block = [
         "[otel]".to_string(),
         format!("environment = {}", toml_string(environment)),
-        "log_user_prompt = true".to_string(),
         format!(
             "span_attributes = {{ \"service.name\" = {}, \"centaur.span_prefix\" = {} }}",
             toml_string("codex"),
@@ -389,10 +378,7 @@ fn post_otlp_trace_payload(
         body.len()
     )?;
     for (name, value) in headers {
-        if matches!(
-            name.as_str(),
-            "authorization" | "x-trace-id" | "x-centaur-thread-key"
-        ) {
+        if matches!(name.as_str(), "authorization" | "x-trace-id") {
             write!(upstream, "{name}: {value}\r\n")?;
         }
     }
@@ -539,10 +525,7 @@ fn forward_otlp_request(
         body.len()
     )?;
     for (name, value) in incoming_headers {
-        if matches!(
-            name.as_str(),
-            "authorization" | "x-trace-id" | "x-centaur-thread-key"
-        ) {
+        if matches!(name.as_str(), "authorization" | "x-trace-id") {
             write!(upstream, "{name}: {value}\r\n")?;
         }
     }
@@ -666,9 +649,6 @@ fn harness_usage_trace_request(
         span_context.model_provider,
     );
     set_attribute_string(&mut attributes, "centaur.turn_id", span_context.turn_id);
-    if let Some(thread_key) = trace.thread_key.as_deref() {
-        set_attribute_string(&mut attributes, "centaur.thread_key", thread_key);
-    }
     apply_laminar_trace_metadata_to_attributes(&mut attributes, &trace.metadata);
 
     let start = span_context.start_unix_nano.min(span_context.end_unix_nano);
@@ -735,46 +715,19 @@ fn set_harness_span_io_attributes(
     output: Option<&str>,
 ) {
     if let Some(input) = clean_optional(input) {
-        set_attribute_string(attributes, "input.value", &input);
-        set_attribute_string(
+        set_attribute_int(
             attributes,
-            "lmnr.span.input",
-            &legacy_chat_message_json("user", &input),
-        );
-        set_attribute_string(
-            attributes,
-            "gen_ai.input.messages",
-            &gen_ai_message_json("user", &input),
+            "centaur.input_chars",
+            Some(input.chars().count() as i64),
         );
     }
     if let Some(output) = clean_optional(output) {
-        set_attribute_string(attributes, "output.value", &output);
-        set_attribute_string(
+        set_attribute_int(
             attributes,
-            "lmnr.span.output",
-            &legacy_chat_message_json("assistant", &output),
-        );
-        set_attribute_string(
-            attributes,
-            "gen_ai.output.messages",
-            &gen_ai_message_json("assistant", &output),
+            "centaur.output_chars",
+            Some(output.chars().count() as i64),
         );
     }
-}
-
-fn legacy_chat_message_json(role: &str, content: &str) -> String {
-    serde_json::to_string(&json!([{ "role": role, "content": content }]))
-        .unwrap_or_else(|_| "[]".to_string())
-}
-
-fn gen_ai_message_json(role: &str, content: &str) -> String {
-    serde_json::to_string(&json!([
-        {
-            "role": role,
-            "parts": [{ "type": "text", "content": content }]
-        }
-    ]))
-    .unwrap_or_else(|_| "[]".to_string())
 }
 
 fn apply_laminar_trace_metadata_to_attributes(
@@ -1281,7 +1234,6 @@ trust_level = "trusted"
             &base,
             "http://127.0.0.1:1234/v1/traces",
             "01234567-89ab-cdef-0123-456789abcdef",
-            Some("slack:T:C:1.0"),
             Some("secret"),
             "production",
         );
@@ -1291,8 +1243,8 @@ trust_level = "trusted"
         assert!(config.contains("[otel]"));
         assert!(config.contains("environment = \"production\""));
         assert!(config.contains("x-trace-id = \"01234567-89ab-cdef-0123-456789abcdef\""));
-        assert!(config.contains("x-centaur-thread-key = \"slack:T:C:1.0\""));
         assert!(config.contains("authorization = \"Bearer secret\""));
+        assert!(!config.contains("log_user_prompt"));
         assert!(!config.contains("environment = \"old\""));
     }
 
@@ -1413,32 +1365,25 @@ trust_level = "trusted"
             "claude-fable-5"
         );
         assert_eq!(attribute_string(&span.attributes, "lmnr.span.type"), "LLM");
-        assert_eq!(attribute_string(&span.attributes, "input.value"), "say hi");
         assert_eq!(
-            serde_json::from_str::<Value>(&attribute_string(
-                &span.attributes,
-                "gen_ai.input.messages"
-            ))
-            .expect("input messages JSON"),
-            json!([{
-                "role": "user",
-                "parts": [{ "type": "text", "content": "say hi" }]
-            }])
+            attribute_int(&span.attributes, "centaur.input_chars"),
+            Some("say hi".chars().count() as i64)
         );
         assert_eq!(
-            attribute_string(&span.attributes, "output.value"),
-            "hi there"
+            attribute_int(&span.attributes, "centaur.output_chars"),
+            Some("hi there".chars().count() as i64)
         );
-        assert_eq!(
-            serde_json::from_str::<Value>(&attribute_string(
-                &span.attributes,
-                "gen_ai.output.messages"
-            ))
-            .expect("output messages JSON"),
-            json!([{
-                "role": "assistant",
-                "parts": [{ "type": "text", "content": "hi there" }]
-            }])
+        assert!(
+            !span
+                .attributes
+                .iter()
+                .any(|attribute| attribute.key == "input.value")
+        );
+        assert!(
+            !span
+                .attributes
+                .iter()
+                .any(|attribute| attribute.key == "output.value")
         );
         assert_eq!(
             attribute_int(&span.attributes, "gen_ai.usage.input_tokens"),

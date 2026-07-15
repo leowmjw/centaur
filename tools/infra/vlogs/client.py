@@ -1,9 +1,7 @@
 """VictoriaLogs HTTP API client for LogsQL queries, field names, and field values."""
 
-import json
 import os
 import re
-import shlex
 from typing import Any
 
 import httpx
@@ -225,27 +223,6 @@ class VictoriaLogsClient:
                 return 0.0
         return 0.0
 
-    @staticmethod
-    def _format_tool_args(value: Any) -> str:
-        if value is None:
-            return "(no args)"
-        if isinstance(value, list | tuple):
-            if not value:
-                return "(no args)"
-            return shlex.join(str(item) for item in value)
-        if isinstance(value, dict):
-            if not value:
-                return "(no args)"
-            return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
-        text = str(value)
-        return text if text else "(no args)"
-
-    @classmethod
-    def _tool_args_label(cls, entry: dict) -> str:
-        if "tool_args" not in entry:
-            return "(not captured)"
-        return cls._format_tool_args(entry.get("tool_args"))
-
     @classmethod
     def _hits_step(cls, start: str) -> str:
         """Choose a reasonable bucket size for `/select/logsql/hits`."""
@@ -427,12 +404,9 @@ class VictoriaLogsClient:
             "_msg",
             "duration_ms",
             "success",
-            "tool_args",
             "tool_args_count",
-            "tool_args_truncated",
             "tool_name",
             "tool_method",
-            "thread_key",
         }
         return [
             {k: v for k, v in self._clean_entry(e).items() if k in keep_fields}
@@ -518,9 +492,7 @@ class VictoriaLogsClient:
                 "calls": 0,
                 "failures": 0,
                 "total_duration_ms": 0,
-                "args": defaultdict(int),
                 "methods": defaultdict(int),
-                "threads": set(),
             }
         )
         for entry in results:
@@ -528,19 +500,14 @@ class VictoriaLogsClient:
                 continue
             tool = entry.get("tool_name", "unknown")
             method = entry.get("tool_method", "unknown")
-            args = self._tool_args_label(entry)
             success = entry.get("success", "true") == "true"
             duration = round(self._coerce_float(entry.get("duration_ms", 0)))
-            thread = entry.get("thread_key", "")
 
             stats[tool]["calls"] += 1
             if not success:
                 stats[tool]["failures"] += 1
             stats[tool]["total_duration_ms"] += duration
-            stats[tool]["args"][args] += 1
             stats[tool]["methods"][method] += 1
-            if thread:
-                stats[tool]["threads"].add(thread)
 
         result = []
         for tool, s in sorted(stats.items(), key=lambda x: x[1]["calls"], reverse=True)[:limit]:
@@ -553,10 +520,6 @@ class VictoriaLogsClient:
                     "failures": s["failures"],
                     "failure_rate_pct": failure_rate,
                     "avg_duration_ms": avg_ms,
-                    "unique_threads": len(s["threads"]),
-                    "args": dict(
-                        sorted(s["args"].items(), key=lambda item: item[1], reverse=True)
-                    ),
                     "methods": dict(s["methods"]),
                 }
             )
@@ -568,10 +531,10 @@ class VictoriaLogsClient:
         start: str = "24h",
         limit: int = 200,
     ) -> list[dict]:
-        """Get tool calls for a specific thread, or top threads by tool usage.
+        """Get tool calls for a specific thread.
 
         Args:
-            thread_key: If provided, show all tool calls for this thread. If empty, show top threads.
+            thread_key: If provided, show all tool calls for this thread.
             start: Time range (default '24h').
             limit: Max entries.
         """
@@ -583,9 +546,7 @@ class VictoriaLogsClient:
             results = self.query(q, limit=limit, **self._time_params(start))
             keep_fields = {
                 "_time",
-                "tool_args",
                 "tool_args_count",
-                "tool_args_truncated",
                 "tool_name",
                 "tool_method",
                 "duration_ms",
@@ -597,19 +558,8 @@ class VictoriaLogsClient:
                 if "_note" not in e
             ]
 
-        # Top threads by tool usage
-        q = f"{self._time_prefix(start)}event:tool_call_completed AND thread_key:*"
-        results = self.query(q, limit=10000, **self._time_params(start))
-        from collections import Counter
-
-        threads: Counter = Counter()
-        for entry in results:
-            if "_note" in entry:
-                continue
-            tk = entry.get("thread_key", "")
-            if tk:
-                threads[tk] += 1
-        return [{"thread_key": tk, "tool_calls": cnt} for tk, cnt in threads.most_common(limit)]
+        # Cross-thread analytics are intentionally suppressed.
+        return []
 
     def execution_summaries(
         self,

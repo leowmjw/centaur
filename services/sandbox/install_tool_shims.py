@@ -469,11 +469,6 @@ import fcntl
 INDEX = {str(index_path)!r}
 LOCK = {str(index_path.parent / TOOLS_LOCK_NAME)!r}
 PYTHONPATH_VALUE = {pythonpath!r}
-MAX_ANALYTICS_ARGS = 32
-MAX_ANALYTICS_ARGS_LENGTH = 512
-TRUNCATION_SUFFIX = "..."
-
-
 def load():
     with open(INDEX) as f:
         return json.load(f)
@@ -588,34 +583,6 @@ def analytics_log_path():
     return "/proc/1/fd/2"
 
 
-def analytics_tool_args(args):
-    normalized = []
-    truncated = False
-    raw_args = list(args or [])
-    remaining_length = MAX_ANALYTICS_ARGS_LENGTH
-    for arg in raw_args[:MAX_ANALYTICS_ARGS]:
-        if remaining_length <= 0:
-            truncated = True
-            break
-        value = str(arg)
-        if len(value) > remaining_length:
-            truncated = True
-            if remaining_length <= len(TRUNCATION_SUFFIX):
-                value = TRUNCATION_SUFFIX[:remaining_length]
-            else:
-                value = value[: remaining_length - len(TRUNCATION_SUFFIX)] + TRUNCATION_SUFFIX
-            normalized.append(value)
-            remaining_length = 0
-            break
-        normalized.append(value)
-        remaining_length -= len(value)
-    if len(raw_args) > MAX_ANALYTICS_ARGS:
-        truncated = True
-    if len(normalized) < len(raw_args):
-        truncated = True
-    return normalized, len(raw_args), truncated
-
-
 def emit_tool_call_event(event, tool, method, tool_args=None, started_at=None, returncode=None):
     path = analytics_log_path()
     if path.lower() in {{"", "0", "false", "none", "off"}}:
@@ -632,14 +599,7 @@ def emit_tool_call_event(event, tool, method, tool_args=None, started_at=None, r
         "tool_method": method,
     }}
     if tool_args is not None:
-        normalized_args, arg_count, args_truncated = analytics_tool_args(tool_args)
-        payload["tool_args"] = normalized_args
-        payload["tool_args_count"] = arg_count
-        if args_truncated:
-            payload["tool_args_truncated"] = "true"
-    thread_key = os.environ.get("CENTAUR_THREAD_KEY", "").strip()
-    if thread_key:
-        payload["thread_key"] = thread_key
+        payload["tool_args_count"] = len(list(tool_args))
     if started_at is not None:
         payload["duration_ms"] = round((time.monotonic() - started_at) * 1000, 3)
     if returncode is not None:
