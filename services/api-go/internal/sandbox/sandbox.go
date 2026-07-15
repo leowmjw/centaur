@@ -14,7 +14,8 @@ import (
 // ErrNotFound is returned when an operation targets a sandbox that does not exist.
 var ErrNotFound = errors.New("sandbox not found")
 
-// ID is an opaque sandbox identifier (e.g. "asbx-<uuid>").
+// ID is an opaque sandbox identifier in the format "asbx-<uuid>"
+// (e.g. "asbx-01234567-89ab-cdef-0123-456789abcdef").
 type ID string
 
 // Status models the observable state of a sandbox process.
@@ -23,19 +24,25 @@ type Status int
 const (
 	StatusUnknown   Status = iota
 	StatusCreating         // transient: pod/process is being provisioned
+	StatusCreated          // pod/process provisioned but not yet accepting IO
 	StatusRunning          // process is alive and accepting IO
 	StatusSuspended        // process is paused (SIGSTOP or equivalent)
-	StatusGone             // process has exited or was force-killed
+	StatusStopped          // process has exited cleanly via Stop
+	StatusGone             // process has exited or was force-killed unexpectedly
 )
 
 func (s Status) String() string {
 	switch s {
 	case StatusCreating:
 		return "creating"
+	case StatusCreated:
+		return "created"
 	case StatusRunning:
 		return "running"
 	case StatusSuspended:
 		return "suspended"
+	case StatusStopped:
+		return "stopped"
 	case StatusGone:
 		return "gone"
 	default:

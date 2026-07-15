@@ -84,6 +84,7 @@ func TestSandbox_CreateStopCleansUp(t *testing.T) {
 			ctx := context.Background()
 			id, err := b.Create(ctx, echoSpec(b))
 			require.NoError(t, err)
+			t.Cleanup(func() { b.Stop(ctx, id) }) //nolint:errcheck
 
 			// Must be Running after create.
 			require.Eventually(t, func() bool {
@@ -111,7 +112,7 @@ func TestSandbox_PauseResumeRestoresRunning(t *testing.T) {
 			ctx := context.Background()
 			id, err := b.Create(ctx, echoSpec(b))
 			require.NoError(t, err)
-			defer b.Stop(ctx, id) //nolint:errcheck
+			t.Cleanup(func() { b.Stop(ctx, id) }) //nolint:errcheck
 
 			waitForStatus(t, b, id, sandbox.StatusRunning)
 
@@ -178,7 +179,7 @@ func TestSandbox_ByteIORoundTrips(t *testing.T) {
 			ctx := context.Background()
 			id, err := b.Create(ctx, echoSpec(b))
 			require.NoError(t, err)
-			defer b.Stop(ctx, id) //nolint:errcheck
+			t.Cleanup(func() { b.Stop(ctx, id) }) //nolint:errcheck
 
 			waitForStatus(t, b, id, sandbox.StatusRunning)
 
@@ -207,7 +208,7 @@ func TestSandbox_StdinDropClosesWriteHalf(t *testing.T) {
 			ctx := context.Background()
 			id, err := b.Create(ctx, echoSpec(b))
 			require.NoError(t, err)
-			defer b.Stop(ctx, id) //nolint:errcheck
+			t.Cleanup(func() { b.Stop(ctx, id) }) //nolint:errcheck
 
 			waitForStatus(t, b, id, sandbox.StatusRunning)
 
@@ -244,7 +245,7 @@ func TestSandbox_PauseBlocksReadWriteUntilResume(t *testing.T) {
 			ctx := context.Background()
 			id, err := b.Create(ctx, echoSpec(b))
 			require.NoError(t, err)
-			defer b.Stop(ctx, id) //nolint:errcheck
+			t.Cleanup(func() { b.Stop(ctx, id) }) //nolint:errcheck
 
 			waitForStatus(t, b, id, sandbox.StatusRunning)
 
@@ -292,7 +293,7 @@ func TestSandbox_ReconnectCanObserveAndStop(t *testing.T) {
 			ctx := context.Background()
 			id, err := b.Create(ctx, echoSpec(b))
 			require.NoError(t, err)
-			defer b.Stop(ctx, id) //nolint:errcheck
+			t.Cleanup(func() { b.Stop(ctx, id) }) //nolint:errcheck
 
 			waitForStatus(t, b, id, sandbox.StatusRunning)
 
