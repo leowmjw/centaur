@@ -101,13 +101,11 @@ type Backend interface {
 }
 
 // NewLocalBackend creates the local process-based sandbox backend.
-// The implementing agent must provide the concrete type in a separate file.
 func NewLocalBackend() Backend {
-	panic("NewLocalBackend not yet implemented")
+	return newLocalBackend()
 }
 
 // NewK8sBackend creates the Kubernetes sandbox backend.
-// The implementing agent must provide the concrete type in a separate file.
 func NewK8sBackend(kubeContext, namespace, image string) (Backend, error) {
-	panic("NewK8sBackend not yet implemented")
+	return newK8sBackend(kubeContext, namespace, image)
 }
