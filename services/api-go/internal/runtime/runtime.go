@@ -51,11 +51,11 @@ type PersonaDefinition struct {
 }
 
 type PersonaSummary struct {
-	ID         string `json:"id"`
-	SourceRoot string `json:"source_root,omitempty"`
-	SourcePath string `json:"source_path,omitempty"`
+	ID         string  `json:"id"`
+	SourceRoot string  `json:"source_root,omitempty"`
+	SourcePath string  `json:"source_path,omitempty"`
 	SourceRef  *string `json:"source_ref,omitempty"`
-	PromptHash string `json:"prompt_hash,omitempty"`
+	PromptHash string  `json:"prompt_hash,omitempty"`
 }
 
 type PersonaRegistry struct {
@@ -407,7 +407,7 @@ func ExtractTerminalPayloadText(line string) string {
 	if text := nestedString(payload, "result", "text"); text != "" {
 		return text
 	}
-		if text := nestedString(payload, "result", "message", "content", 0, "text"); text != "" {
+	if text := nestedString(payload, "result", "message", "content", 0, "text"); text != "" {
 		return text
 	}
 	return ""

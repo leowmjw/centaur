@@ -41,11 +41,11 @@ type CreateExecutionResult struct {
 }
 
 type PgSessionStore struct {
-	mu              sync.Mutex
-	sessions        map[string]*session.Session
-	executions      map[string]*storedExecution
+	mu               sync.Mutex
+	sessions         map[string]*session.Session
+	executions       map[string]*storedExecution
 	warmReservations map[string]map[string]bool
-	eventCounter    int64
+	eventCounter     int64
 }
 
 type storedExecution struct {

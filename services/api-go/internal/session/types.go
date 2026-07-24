@@ -70,7 +70,7 @@ const (
 func (a RepoCacheAccess) Enabled() bool { return a != RepoCacheNone }
 
 type SandboxCapabilities struct {
-	RepoCache             RepoCacheAccess
+	RepoCache            RepoCacheAccess
 	ObservabilityEnabled bool
 	APIServerEnabled     bool
 }

@@ -93,8 +93,8 @@ func (s *Spec) WithEnv(key, value string) *Spec {
 	return s
 }
 
-func (s *Spec) EnvValue(key string) string {
-	if s == nil || s.Env == nil {
+func (s Spec) EnvValue(key string) string {
+	if s.Env == nil {
 		return ""
 	}
 	return s.Env[key]
